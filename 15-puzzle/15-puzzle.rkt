@@ -1,17 +1,23 @@
 #lang racket
 
+;;; Solution to the 15-puzzle game, based on the A* algorithm described
+;;; at https://de.wikipedia.org/wiki/A*-Algorithmus
+
 (require racket/set)
 (require data/heap)
 
 ;; ----------------------------------------------------------------------------
 ;; Datatypes
 
+;; A posn is a pair struct containing two integer for the row/col indices
 (struct posn (row col) #:transparent)
 
+;; A state contains a vector and a posn describing the position of the empty slot.
 (struct state (matrix empty-slot) #:transparent)
 
 (define directions '(up down left right))
 
+;; A node contains a state, a reference for 
 (struct node (state prev g-value f-value) #:transparent)
 
 ;; ----------------------------------------------------------------------------
@@ -52,6 +58,14 @@
       9  0 10 12
       13 14 11 15)
     (posn 2 1)))
+
+(define extra-credit-state
+  (state
+    #(0 12  9 13
+        15 11 10 14
+        3  7  2  5
+        4  8  6  1)
+    (posn 0 0)))
 
 (define initial-node
   (node initial-state
@@ -251,13 +265,8 @@
 (define (A* initial-st)
   (define open-lst (make-heap compare-nodes))
   (define initial-st-cost (state-cost initial-st))
-  (printf "Initial cost: ~a\n" initial-st-cost)
   (heap-add! open-lst (node initial-st #f 0 (state-cost initial-st)))
   (define closed-set (mutable-set))
-  
-  (define dp-hash (make-hash))
-  
-  (hash-set! dp-hash initial-st 0)
   
   (define (pick-next-node!)
     (define next-node (heap-min open-lst))
@@ -271,7 +280,6 @@
   
   (define (expand-node n)
     
-    (define this-best-cost (hash-ref dp-hash (node-state n)))
     (define n-cost (node-g-value n))
     
     (define (iter lst)
@@ -280,26 +288,20 @@
         (let* ([succ (car lst)]
                [succ-st (car succ)]
                [succ-dir (cdr succ)]
-               [succ-st-best-cost (hash-ref dp-hash succ-st #f)]
                [succ-cost (+ 1 n-cost)])
           (if (set-member? closed-set succ-st)
               (iter (cdr lst))
-            (if (and succ-st-best-cost
-                     (> succ-cost succ-st-best-cost))
-                (iter (cdr lst))
-              (begin (hash-set! dp-hash succ-st succ-cost)
-                     (heap-add! open-lst
-                                (node succ-st
-                                      n
-                                      succ-cost
-                                      (+ (state-cost succ-st)
-                                         succ-cost)))
-                     (iter (cdr lst))))))))
-    (if (and this-best-cost
-             (< this-best-cost n-cost))
-        #f
-      (let ([successors (next-state-dir-pairs n)])
-        (iter successors))))
+            
+            (begin    (heap-add! open-lst
+                                 (node succ-st
+                                       n
+                                       succ-cost
+                                       (+ (state-cost succ-st)
+                                          succ-cost)))
+                   (iter (cdr lst)))))))
+    
+    (let ([successors (next-state-dir-pairs n)])
+      (iter successors)))
   
   (define counter 0)
   (define (loop)
