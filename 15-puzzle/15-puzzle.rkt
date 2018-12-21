@@ -3,13 +3,16 @@
 ;;; Solution to the 15-puzzle game, based on the A* algorithm described
 ;;; at https://de.wikipedia.org/wiki/A*-Algorithmus
 
+;;; Inspired by the Python solution of the rosetta code:
+;;; http://rosettacode.org/wiki/15_puzzle_solver#Python
+
 (require racket/set)
 (require data/heap)
 
 ;; ----------------------------------------------------------------------------
 ;; Datatypes
 
-;; A posn is a pair struct containing two integer for the row/col indices
+;; A posn is a pair struct containing two integer for the row/col indices.
 (struct posn (row col) #:transparent)
 
 ;; A state contains a vector and a posn describing the position of the empty slot.
@@ -17,8 +20,9 @@
 
 (define directions '(up down left right))
 
-;; A node contains a state, a reference for 
-(struct node (state prev g-value f-value) #:transparent)
+;; A node contains a state, a reference to the previous node, a g value (actual
+;; costs until this node, and a f value (g value + heuristics).
+(struct node (state prev cost f-value) #:transparent)
 
 ;; ----------------------------------------------------------------------------
 ;; Constants
@@ -84,6 +88,7 @@
 ;; ----------------------------------------------------------------------------
 ;; Functions
 
+;; Matrices are simple vectors, abstracted by following functions.
 (define (matrix-ref matrix row col)
   (vector-ref matrix (+ (* row side-size) col)))
 
@@ -95,11 +100,15 @@
 (define (target-state? st)
   (equal? st goal-state))
 
+;; Traverse all nodes until the initial state and generate a return a list
+;; of symbols describing the path.
 (define (reconstruct-movements leaf-node)
+  ;; compute a pair describing the movement.
   (define (posn-diff p0 p1)
     (posn (- (posn-row p1) (posn-row p0))
           (- (posn-col p1) (posn-col p0))))
   
+  ;; describe a single movement with a symbol (r, l, u d).
   (define (find-out-movement prev-st st)
     (let ([prev-empty-slot (state-empty-slot prev-st)]
           [this-empty-slot (state-empty-slot st)])
@@ -119,6 +128,7 @@
                   path))))
   (iter leaf-node '()))
 
+;; Return #t if direction is allowed for the given empty slot position.
 (define (movement-valid? direction empty-slot)
   (match direction
          ['up (< (posn-row empty-slot) (- side-size 1))]
@@ -126,8 +136,8 @@
          ['left (< (posn-col empty-slot) (- side-size 1))]
          ['right (> (posn-col empty-slot) 0)]))
 
-; assumes move direction is valid (see movement-valid?).
-; Returns a new state
+;; assumes move direction is valid (see movement-valid?).
+;; Return a new state in the given direction.
 (define (move st direction)
   (define m (vector-copy (state-matrix st)))
   (define empty-slot (state-empty-slot st))
@@ -153,7 +163,8 @@
   (+ (abs (- (posn-row posn0) (posn-row posn1)))
      (abs (- (posn-col posn0) (posn-col posn1)))))
 
-; computes the L1 distance from the current position and the goal position
+;; compute the L1 distance from the current position and the goal position for
+;; the given val
 (define (element-cost val current-posn)
   (if (= val 0)
       (l1-distance current-posn (posn 3 3))
@@ -161,6 +172,7 @@
           [target-col (remainder (- val 1) side-size)])
       (l1-distance current-posn (posn target-row target-col)))))
 
+;; compute the l1 distance between this state and the goal-state
 (define (state-l1-distance-to-goal st)
   (define m (state-matrix st))
   (for*/fold
@@ -172,10 +184,14 @@
           (+ sum (element-cost (matrix-ref m i j) (posn i j)))
         sum))))
 
-(define (state-cost st)
+;; the heuristic used is the l1 distance to the goal-state + the number of
+;; linear conflicts found
+(define (state-heuristics st)
   (+ (state-l1-distance-to-goal st)
      (linear-conflicts st goal-state)))
 
+;; given a list, return the number of values out of order (used for computing
+;; linear conflicts).
 (define (out-of-order-values lst)
   (define (iter val-lst sum)
     (if (empty? val-lst)
@@ -188,6 +204,9 @@
         (iter rst (+ sum (length following-smaller-values))))))
   (* 2 (iter lst 0)))
 
+;; Number of conflicts in the given row. A conflict happens, when two elements
+;; are already in the correct row, but in the wrong order.
+;; For each conflicted pair add 2 to the value, but a maximum of 6.
 (define (row-conflicts row st0 st1)
   (define m0 (state-matrix st0))
   (define m1 (state-matrix st1))
@@ -207,7 +226,10 @@
            ; 0 doesn't lead to a linear conflict
            (filter positive? values-in-correct-row))))
 
-
+;; Number of conflicts in the given row. A conflict happens, when two elements
+;; are already in the correct column but in the wrong order.
+;; For each conflicted pair add 2 to the value, but a maximum of 6, so that
+;; the heuristic doesn't overestimate the actual costs.
 (define (col-conflicts col st0 st1)
   (define m0 (state-matrix st0))
   (define m1 (state-matrix st1))
@@ -236,10 +258,11 @@
             ([col (in-range side-size)])
             (+ (col-conflicts col st0 st1) sum)))
 
-
 (define (linear-conflicts st0 st1)
   (+ (all-row-conflicts st0 st1) (all-col-conflicts st0 st1)))
 
+;; Return a list of pairs containing the possible next node and the movement
+;; direction needed.
 (define (next-state-dir-pairs current-node)
   (define st (node-state current-node))
   (define empty-slot (state-empty-slot st))
@@ -250,6 +273,7 @@
          (cons (move st dir) dir))
        valid-movements))
 
+;; Helper function to pretty-print a state
 (define (display-state st)
   (define m (state-matrix st))
   (begin
@@ -259,13 +283,13 @@
               (printf "~a\t" (matrix-ref m i j))))
     (displayln "")))
 
-(define (compare-nodes n0 n1)
-  (<= (node-f-value n0) (node-f-value n1)))
 
 (define (A* initial-st)
+  (define (compare-nodes n0 n1)
+    (<= (node-f-value n0) (node-f-value n1)))
   (define open-lst (make-heap compare-nodes))
-  (define initial-st-cost (state-cost initial-st))
-  (heap-add! open-lst (node initial-st #f 0 (state-cost initial-st)))
+  (define initial-st-cost (state-heuristics initial-st))
+  (heap-add! open-lst (node initial-st #f 0 (state-heuristics initial-st)))
   (define closed-set (mutable-set))
   
   (define (pick-next-node!)
@@ -280,7 +304,7 @@
   
   (define (expand-node n)
     
-    (define n-cost (node-g-value n))
+    (define n-cost (node-cost n))
     
     (define (iter lst)
       (if (empty? lst)
@@ -296,7 +320,7 @@
                                  (node succ-st
                                        n
                                        succ-cost
-                                       (+ (state-cost succ-st)
+                                       (+ (state-heuristics succ-st)
                                           succ-cost)))
                    (iter (cdr lst)))))))
     
@@ -311,7 +335,7 @@
     (if (= (remainder counter 10000) 0)
         (printf "~a ~a ~a\n" counter
                 (heap-count open-lst)
-                (node-g-value current-node))
+                (node-cost current-node))
       (void))
     
     (cond [(target-state? current-state)
@@ -385,9 +409,9 @@
         (check-eq? (element-cost 11 (posn 3 3)) 2)
         (check-eq? (element-cost 0 (posn 1 1)) 4)
         
-        (check-eq? (state-cost goal-state) 0)
-        (check-eq? (state-cost initial-state) 38)
-        (check-eq? (state-cost almost-right-state) 3))
+        (check-eq? (state-heuristics goal-state) 0)
+        (check-eq? (state-heuristics initial-state) 38)
+        (check-eq? (state-heuristics almost-right-state) 3))
       
       (test-case
         "linear conflicts test"
