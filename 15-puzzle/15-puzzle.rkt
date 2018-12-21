@@ -30,7 +30,7 @@
 
 (define sample-state
   (state
-    #( 1  8  2 12 
+    #( 1  8  2 12
       5  6 0  4
       9  3  7 15
       13 10 14 11)
@@ -38,7 +38,7 @@
 
 (define sample-state2
   (state
-    #( 5  8  7 11 
+    #( 5  8  7 11
       1  6 12  2
       9  0  13 10
       14 3  4 15)
@@ -81,25 +81,11 @@
 (define (target-state? st)
   (equal? st goal-state))
 
-
-#|
-(define (target-state? st)
-  (define matrix (state-matrix st))
-  (and (equal? (posn 3 3) (state-empty-slot st))
-       (for*/and ([row (in-range 0 side-size 1)]
-                  [col (in-range 0 side-size 1)])
-                 (let* ([element (matrix-ref matrix row col)])
-                   (equal? element (remainder (+ (* row side-size)
-                                                 col
-                                                 1)
-                                              16))))))
-|#
-
 (define (reconstruct-movements leaf-node)
   (define (posn-diff p0 p1)
     (posn (- (posn-row p1) (posn-row p0))
           (- (posn-col p1) (posn-col p0))))
-
+  
   (define (find-out-movement prev-st st)
     (let ([prev-empty-slot (state-empty-slot prev-st)]
           [this-empty-slot (state-empty-slot st)])
@@ -109,7 +95,7 @@
              [(posn  0  1) 'l]
              [(posn  0 -1) 'r]
              [#f 'invalid])))
-
+  
   (define (iter n path)
     (if (or (not n) (not (node-prev n)))
         path
@@ -169,27 +155,23 @@
      [j (in-range side-size)])
     (let ([val (matrix-ref m i j)])
       (if (not (= val 0))
-        (+ sum (element-cost (matrix-ref m i j) (posn i j)))
+          (+ sum (element-cost (matrix-ref m i j) (posn i j)))
         sum))))
 
 (define (state-cost st)
   (+ (state-l1-distance-to-goal st)
      (linear-conflicts st goal-state)))
 
-;(define (linear-conflicts st0 st1)
-;  (+ (all-row-conflicts st0 st1) (all-col-conflicts st0 st1)))
-
-
 (define (out-of-order-values lst)
   (define (iter val-lst sum)
     (if (empty? val-lst)
-      sum
+        sum
       (let* ([val (car val-lst)]
              [rst (cdr val-lst)]
              [following-smaller-values
                (filter (lambda (val2) (> val2 val))
                        rst)])
-           (iter rst (+ sum (length following-smaller-values))))))
+        (iter rst (+ sum (length following-smaller-values))))))
   (* 2 (iter lst 0)))
 
 (define (row-conflicts row st0 st1)
@@ -200,33 +182,35 @@
     (for/fold
       ([lst '()])
       ([col0 (in-range side-size)])
-       (let* ([val0 (matrix-ref m0 row col0)]
-              [in-goal-row?
+      (let* ([val0 (matrix-ref m0 row col0)]
+             [in-goal-row?
                (for/first ([col1 (in-range side-size)]
-                                  #:when (= val0 (matrix-ref m1 row col1)))
-                                    #t)])
-          (if in-goal-row? (cons val0 lst) lst))))
+                           #:when (= val0 (matrix-ref m1 row col1)))
+                          #t)])
+        (if in-goal-row? (cons val0 lst) lst))))
+
   (min 6 (out-of-order-values
-             ; 0 doesn't lead to a linear conflict
-             (filter positive? values-in-correct-row))))
+           ; 0 doesn't lead to a linear conflict
+           (filter positive? values-in-correct-row))))
 
 
 (define (col-conflicts col st0 st1)
   (define m0 (state-matrix st0))
   (define m1 (state-matrix st1))
+
   (define values-in-correct-col
     (for/fold
       ([lst '()])
       ([row0 (in-range side-size)])
-       (let* ([val0 (matrix-ref m0 row0 col)]
-              [in-goal-col?
+      (let* ([val0 (matrix-ref m0 row0 col)]
+             [in-goal-col?
                (for/first ([row1 (in-range side-size)]
-                                  #:when (= val0 (matrix-ref m1 row1 col)))
-                                    #t)])
-          (if in-goal-col? (cons val0 lst) lst))))
+                           #:when (= val0 (matrix-ref m1 row1 col)))
+                          #t)])
+        (if in-goal-col? (cons val0 lst) lst))))
   (min 6 (out-of-order-values
            ; 0 doesn't lead to a linear conflict
-             (filter positive? values-in-correct-col))))
+           (filter positive? values-in-correct-col))))
 
 (define (all-row-conflicts st0 st1)
   (for/fold ([sum 0])
@@ -270,21 +254,21 @@
   (printf "Initial cost: ~a\n" initial-st-cost)
   (heap-add! open-lst (node initial-st #f 0 (state-cost initial-st)))
   (define closed-set (mutable-set))
-
+  
   (define dp-hash (make-hash))
-
+  
   (hash-set! dp-hash initial-st 0)
   
   (define (pick-next-node!)
     (define next-node (heap-min open-lst))
     (heap-remove-min! open-lst)
     next-node)
-
+  
   (define (sort-lst lst)
     (sort lst
           (lambda (n0 n1)
-              (< (node-f-value n0) (node-f-value n1)))))
-
+            (< (node-f-value n0) (node-f-value n1)))))
+  
   (define (expand-node n)
     
     (define this-best-cost (hash-ref dp-hash (node-state n)))
@@ -315,19 +299,19 @@
              (< this-best-cost n-cost))
         #f
       (let ([successors (next-state-dir-pairs n)])
-        (iter successors)))) 
+        (iter successors))))
   
   (define counter 0)
   (define (loop)
     (define current-node (pick-next-node!))
     (define current-state (node-state current-node))
-     (set! counter (+ counter 1))
-          (if (= (remainder counter 10000) 0)
-            (printf "~a ~a ~a\n" counter
-		    (heap-count open-lst)
-		    (node-g-value current-node))
-            (void))
- 
+    (set! counter (+ counter 1))
+    (if (= (remainder counter 10000) 0)
+        (printf "~a ~a ~a\n" counter
+                (heap-count open-lst)
+                (node-g-value current-node))
+      (void))
+    
     (cond [(target-state? current-state)
            (let ([path (reconstruct-movements current-node)])
              (cons path (length path)))]
@@ -401,47 +385,45 @@
         
         (check-eq? (state-cost goal-state) 0)
         (check-eq? (state-cost initial-state) 38)
-        (check-eq? (state-cost almost-right-state) 3)
-        )
-
+        (check-eq? (state-cost almost-right-state) 3))
+      
       (test-case
         "linear conflicts test"
         (define other-state
-         (state
-           #( 1  2  6  4
-             8  7  3 5
-             9 11 10 0
-             12 13 14 15)
-           (posn 2 3)))
+          (state
+            #( 1  2  6  4
+              8  7  3 5
+              9 11 10 0
+              12 13 14 15)
+            (posn 2 3)))
         (check-eq? (out-of-order-values '(3 2 1)) 0)
         (check-eq? (out-of-order-values '(3 1 2)) 2)
         (check-eq? (out-of-order-values '(1 3 2)) 4)
         (check-eq? (out-of-order-values '(1 2 3 4)) 12)
-        (check-eq? (row-conflicts 0 other-state goal-state) 0) 
-        (check-eq? (row-conflicts 1 other-state goal-state) 6) 
-        (check-eq? (row-conflicts 2 other-state goal-state) 2) 
-        (check-eq? (row-conflicts 3 other-state goal-state) 0) 
-        (check-eq? (all-row-conflicts other-state goal-state) 8) 
-
-        (check-eq? (col-conflicts 2 other-state goal-state) 0) 
-        (check-eq? (col-conflicts 3 other-state goal-state) 0) 
-        (check-eq? (all-col-conflicts other-state goal-state) 0) 
-        (check-eq? (linear-conflicts other-state goal-state) 8)
-        )
+        (check-eq? (row-conflicts 0 other-state goal-state) 0)
+        (check-eq? (row-conflicts 1 other-state goal-state) 6)
+        (check-eq? (row-conflicts 2 other-state goal-state) 2)
+        (check-eq? (row-conflicts 3 other-state goal-state) 0)
+        (check-eq? (all-row-conflicts other-state goal-state) 8)
+        
+        (check-eq? (col-conflicts 2 other-state goal-state) 0)
+        (check-eq? (col-conflicts 3 other-state goal-state) 0)
+        (check-eq? (all-col-conflicts other-state goal-state) 0)
+        (check-eq? (linear-conflicts other-state goal-state) 8))
       
       (test-case
         "next-nodes test"
         (define ns
           (next-state-dir-pairs initial-node))
         (check member
-                 (cons (state
-                         (vector
-                           15  14  1  6
-                           0  11  4 12
-                           9  10  7  3
-                           13  8  5  2)
-                         (posn 1 0))
-                       'down)
+               (cons (state
+                       (vector
+                         15  14  1  6
+                         0  11  4 12
+                         9  10  7  3
+                         13  8  5  2)
+                       (posn 1 0))
+                     'down)
                ns)
         (check-eq? (length ns) 3))
       (test-case
@@ -458,9 +440,5 @@
           (cons (list 'r) 1)))))
   (run-tests tests))
 
-;(require profile)
-;(module+ main
-;  (profile-thunk (thunk (A* initial-state))))
-
 (module+ main
-  (A* initial-state))
+         (A* initial-state))
