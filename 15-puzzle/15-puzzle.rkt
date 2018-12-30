@@ -38,44 +38,6 @@
       13  8  5  2)
     (posn 2 0)))
 
-(define sample-state
-  (state
-    #( 1  8  2 12
-      5  6 0  4
-      9  3  7 15
-      13 10 14 11)
-    (posn 1 2)))
-
-(define sample-state2
-  (state
-    #( 5  8  7 11
-      1  6 12  2
-      9  0  13 10
-      14 3  4 15)
-    (posn 2 1)))
-
-
-(define almost-right-state
-  (state
-    #( 1  2  3  4
-      5  6  7 8
-      9  0 10 12
-      13 14 11 15)
-    (posn 2 1)))
-
-(define extra-credit-state
-  (state
-    #(0 12  9 13
-        15 11 10 14
-        3  7  2  5
-        4  8  6  1)
-    (posn 0 0)))
-
-(define initial-node
-  (node initial-state
-        #f
-        0
-        0))
 
 (define goal-state
   (state
@@ -357,8 +319,25 @@
   test
   (require rackunit
            rackunit/text-ui)
+
+  (define initial-node
+    (node initial-state
+          #f
+          0
+          0))
+
+  (define almost-right-state
+    (state
+      #( 1  2  3  4
+        5  6  7 8
+        9  0 10 12
+        13 14 11 15)
+      (posn 2 1)))
+  
+ 
   (define tests
     (test-suite
+
       "15-puzzle problem tests"
       
       (test-case
