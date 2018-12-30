@@ -90,6 +90,11 @@
                   path))))
   (iter leaf-node '()))
 
+(define (print-path path)
+  (for ([dir (in-list (car path))])
+    (display dir))
+  (newline))
+
 ;; Return #t if direction is allowed for the given empty slot position.
 (define (movement-valid? direction empty-slot)
   (match direction
@@ -143,7 +148,7 @@
      [j (in-range side-size)])
     (let ([val (matrix-ref m i j)])
       (if (not (= val 0))
-          (+ sum (element-cost (matrix-ref m i j) (posn i j)))
+          (+ sum (element-cost val (posn i j)))
         sum))))
 
 ;; the heuristic used is the l1 distance to the goal-state + the number of
@@ -183,7 +188,7 @@
                            #:when (= val0 (matrix-ref m1 row col1)))
                           #t)])
         (if in-goal-row? (cons val0 lst) lst))))
-
+  
   (min 6 (out-of-order-values
            ; 0 doesn't lead to a linear conflict
            (filter positive? values-in-correct-row))))
@@ -195,7 +200,7 @@
 (define (col-conflicts col st0 st1)
   (define m0 (state-matrix st0))
   (define m1 (state-matrix st1))
-
+  
   (define values-in-correct-col
     (for/fold
       ([lst '()])
@@ -240,10 +245,10 @@
   (define m (state-matrix st))
   (begin
     (for ([i (in-range 0 side-size 1)])
-         (displayln "")
+         (newline)
          (for ([j (in-range 0 side-size 1)])
               (printf "~a\t" (matrix-ref m i j))))
-    (displayln "")))
+    (newline)))
 
 
 (define (A* initial-st)
@@ -294,7 +299,7 @@
     (define current-node (pick-next-node!))
     (define current-state (node-state current-node))
     (set! counter (+ counter 1))
-    (if (= (remainder counter 10000) 0)
+    (if (= (remainder counter 100000) 0)
         (printf "~a ~a ~a\n" counter
                 (heap-count open-lst)
                 (node-cost current-node))
@@ -446,4 +451,5 @@
   (run-tests tests))
 
 (module+ main
-         (A* initial-state))
+         (print-path (A* initial-state)))
+  
